@@ -1,7 +1,8 @@
 #include <iostream>
 #include <fstream>
-#include "lib.h"
+#include "mips.h"
 #include <time.h>
+#include "interface.h"
 
 using namespace std;
 
@@ -14,7 +15,12 @@ int main( int argc, char** argv )
 
     Mips simulador(file);
 
-    simulador.Run();
+    interface( simulador );
+
+    // simulador.Run();
+
+    // simulador.PrintReg();
+    // simulador.PrintMem();
 
     return 0;
 }

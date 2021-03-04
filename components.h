@@ -1,3 +1,6 @@
+#ifndef COMPONENTS_H
+#define COMPONENTS_H
+
 #include <iostream>
 
 using namespace std;
@@ -20,53 +23,7 @@ struct UC
     int ALUSrc;
     int Branch;
 
-    void GenerateSignals(int OpCode)
-    {
-        switch( OpCode )
-        {
-            case 0: // R-Type
-                RegDst = 1;
-                ALUSrc = 0;
-                MemtoReg = 0;
-                RegWrite = 1;
-                MemRead = 0;
-                MemWrite = 0;
-                Branch = 0;
-                ALUOp = 2;
-            break;
-
-            case 35: // lw
-                RegDst = 0;
-                ALUSrc = 1;
-                MemtoReg = 1;
-                RegWrite = 1;
-                MemRead = 1;
-                MemWrite = 0;
-                Branch = 0;
-                ALUOp = 0;
-            break;
-
-            case 43: // sw
-                ALUSrc = 1;
-                RegWrite = 0;
-                MemRead = 0;
-                MemWrite = 1;
-                Branch = 0;
-                ALUOp = 0;
-            break;
-
-            case 4: // beq
-                ALUSrc = 0;
-                RegWrite = 0;
-                MemRead = 0;
-                MemWrite = 0;
-                Branch = 1;
-                ALUOp = 1;
-            break;
-
-            default: break;
-        }
-    };
+    void GenerateSignals(int OpCode);
 };
 
 struct Instruction
@@ -85,34 +42,14 @@ struct Instruction
 struct ALU
 {
     int ALUControl;
-
-    int Result(int data01, int data02)
-    {
-        switch( ALUControl )
-        {
-            case 0:
-                return ( data01 && data02 );
-            break;
-            
-            case 1:
-                return ( data01 || data02 );
-            break;
-
-            case 2:
-                return data01+data02;
-            break;
-
-            case 6:
-                return data01-data02;
-            break;
-
-            case 7:
-                return ( data01 < data02 ? 1:0 );
-            break;
-
-            default: break;
-        }
-        cout << "NONE" << endl;
-        return 0;
-    }
+    int Result(int data01, int data02);
 };
+
+
+size_t bintodec(string bin);
+long int bintosigned(string bin);
+string dectobin(size_t dec);
+string dectobin(size_t dec, int fillLeft);
+string signedtobin(long int dec, int fillLeft);
+
+#endif
