@@ -25,6 +25,8 @@ void interface( Mips& mips )
     cout << "h - Mostrar o MENU novamente" << endl;
     cout << endl << "==> Ações" << endl;
     cout << "i - Inserir instrução MIPs ( binario )" << endl;
+    cout << "l - Ligar simulador" << endl;
+    cout << "p - Executar um passo da instrução" << endl;
     cout << "s - Fechar o programa" << endl;
 
     if( regview ) mips.PrintReg();
@@ -51,6 +53,14 @@ void interface( Mips& mips )
         case 'i':
             cin >> args[0];
             mips.Execute( args[0] );
+        break;
+
+        case 'l':
+            mips.Run();
+        break;
+
+        case 'p':
+            mips.Step();
         break;
 
         case 'h':

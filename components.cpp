@@ -147,10 +147,11 @@ string dectobin(size_t dec, int fillLeft)
 string signedtobin(long int dec, int fillLeft)
 {
     string bin;
+    long int copy = dec;
 
-    for( ; dec / 2 != 0; dec /= 2 )
-        bin.insert( 0, 1, '0'+(dec%2) );
-    bin.insert( 0, 1, '0'+(dec%2) );
+    for( ; copy / 2 != 0; copy /= 2 )
+        bin.insert( 0, 1, '0'+(abs(copy%2)) );
+    bin.insert( 0, 1, '0'+(abs(copy%2)) );
 
     while( bin.length() < fillLeft-1 )
         bin.insert( 0, 1, '0' );

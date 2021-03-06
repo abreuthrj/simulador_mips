@@ -76,12 +76,12 @@ void Mips::Run()
     for( int i=0; i < imem; i++ )
     {
         cout << "=== INSTRUCTION ===" << endl;
-        step( instruction_memory[pc/4] );
+        proccess( instruction_memory[pc/4] );
         cout << "===================" << endl;
     }
 }
 
-void Mips::step( size_t inst )
+void Mips::proccess( size_t inst )
 {
     pc += 4;
 
@@ -144,12 +144,15 @@ void Mips::step( size_t inst )
     shiftLeftbin.append( 1,'0' );
     shiftLeftbin.insert( 0, 1, bitsign );
 
-    size_t shiftLeft = bintosigned( shiftLeftbin );
+    long int shiftLeft = bintosigned( shiftLeftbin );
 
     // SOMA DO PC + 4 COM O SHIFT LEFT DA ALU
     // APENAS SE ZERO DA ALU
     if( control.Branch == 1 && ALUResult == 0 )
-        pc += shiftLeft/4;
+    {
+        pc += shiftLeft;
+        cout << "shl: " << shiftLeft/4 << endl << "pc: " << pc << endl;
+    }
 
     if( control.MemWrite == 1 )
     {
@@ -172,7 +175,12 @@ void Mips::Execute( string inst )
 {
     size_t decoded = bintodec( inst );
     pc -= 4;
-    step( decoded );
+    proccess( decoded );
+}
+
+void Mips::Step()
+{
+    proccess( instruction_memory[pc/4] );
 }
 
 Instruction Mips::decode(size_t instruction)
@@ -221,7 +229,9 @@ Instruction Mips::decode(size_t instruction)
                         "sw "+helper[i.rt]+", "+to_string(i.address)+"("+helper[i.rs]+")":
                             OpCode == 35 ?
                                 "lw "+helper[i.rt]+", "+to_string(i.address)+"("+helper[i.rs]+")":
-                                "undefined"
+                                    OpCode == 4 ?
+                                    "beq "+helper[i.rs]+", "+helper[i.rt]+", "+to_string(i.address):
+                                    "undefined"
                  )
             << endl;
 
