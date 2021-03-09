@@ -1,37 +1,36 @@
 #include "components.h"
 #include <math.h>
 
-int ALU::Result(int data01, int data02)
+long int ALU::tick()
 {
     switch( ALUControl )
     {
         case 0:
-            return ( data01 && data02 );
+            return ( data1 && data2 );
         break;
         
         case 1:
-            return ( data01 || data02 );
+            return ( data1 || data2 );
         break;
 
         case 2:
-            return data01+data02;
+            return data1+data2;
         break;
 
         case 6:
-            return data01-data02;
+            return data1-data2;
         break;
 
         case 7:
-            return ( data01 < data02 ? 1:0 );
+            return ( data1 < data2 ? 1:0 );
         break;
 
         case 4:
-            return bintodec( dectobin(data02,32).substr(4).append( 4,'0' ) );
+            return bintodec( dectobin(data2,32).substr(4).append( 4,'0' ) );
         break;
 
         default: break;
     }
-    // cout << "NONE" << endl;
     return 0;
 }
 void UC::GenerateSignals(int OpCode)
@@ -39,54 +38,106 @@ void UC::GenerateSignals(int OpCode)
     switch( OpCode )
     {
         case 0: // R-Type
-            RegDst = 1;
-            ALUSrc = 0;
-            MemtoReg = 0;
-            RegWrite = 1;
+            PCWriteCond = 0;
+            PCWrite = 0;
+            IorD = 0;
             MemRead = 0;
             MemWrite = 0;
-            Branch = 0;
+            MemtoReg = 0;
+            IRWrite = 1;
+            PCSource = 2;
             ALUOp = 2;
+            ALUSrcB = 0;
+            ALUSrcA = 1;
+            RegWrite = 1;
+            RegDst = 1;
+            cout << "R-Type" << endl;
         break;
 
         case 8: // addi
-            RegDst = 0;
-            ALUSrc = 1;
-            MemtoReg = 0;
-            RegWrite = 1;
+            PCWriteCond = 0;
+            PCWrite = 0;
+            IorD = 0;
             MemRead = 0;
             MemWrite = 0;
-            Branch = 0;
+            MemtoReg = 0;
+            IRWrite = 1;
+            PCSource = 2;
             ALUOp = 0;
+            ALUSrcB = 2;
+            ALUSrcA = 1;
+            RegWrite = 1;
+            RegDst = 0;
+            cout << "Immediate-Type" << endl;
         break;
 
         case 35: // lw
-            RegDst = 0;
-            ALUSrc = 1;
-            MemtoReg = 1;
-            RegWrite = 1;
+            PCWriteCond = 0;
+            PCWrite = 0;
+            IorD = 1;
             MemRead = 1;
             MemWrite = 0;
-            Branch = 0;
+            MemtoReg = 1;
+            IRWrite = 1;
+            PCSource = 2;
             ALUOp = 0;
+            ALUSrcB = 2;
+            ALUSrcA = 1;
+            RegWrite = 1;
+            RegDst = 1;
+            cout << "Immediate-Type ( LW )" << endl;
         break;
 
         case 43: // sw
-            ALUSrc = 1;
-            RegWrite = 0;
+            PCWriteCond = 0;
+            PCWrite = 0;
+            IorD = 1;
             MemRead = 0;
             MemWrite = 1;
-            Branch = 0;
+            MemtoReg = 0;
+            IRWrite = 1;
+            PCSource = 2;
             ALUOp = 0;
+            ALUSrcB = 2;
+            ALUSrcA = 1;
+            RegWrite = 0;
+            RegDst = 0;
+            cout << "Immediate-Type ( SW )" << endl;
         break;
 
+        case 5: // bne
         case 4: // beq
-            ALUSrc = 0;
-            RegWrite = 0;
+            PCWriteCond = 1;
+            PCWrite = 0;
+            IorD = 0;
             MemRead = 0;
             MemWrite = 0;
-            Branch = 1;
+            MemtoReg = 0;
+            IRWrite = 1;
+            PCSource = 1;
             ALUOp = 1;
+            ALUSrcB = 0;
+            ALUSrcA = 1;
+            RegWrite = 0;
+            RegDst = 0;
+            cout << "Branch-Type" << endl;
+        break;
+
+        case 2:
+            PCWriteCond = 0;
+            PCWrite = 1;
+            IorD = 0;
+            MemRead = 0;
+            MemWrite = 0;
+            MemtoReg = 0;
+            IRWrite = 1;
+            PCSource = 2;
+            ALUOp = 1;
+            ALUSrcB = 0;
+            ALUSrcA = 1;
+            RegWrite = 0;
+            RegDst = 0;
+            cout << "Jump-Type" << endl;
         break;
 
         default: break;
@@ -135,7 +186,7 @@ string dectobin(size_t dec, int fillLeft)
 {
     string bin;
 
-    for( ; dec / 2 != 0; dec /= 2 )
+    for( ; dec / 2 != 0 && bin.length() < fillLeft-1; dec /= 2 )
         bin.insert( 0, 1, '0'+(dec%2) );
     bin.insert( 0, 1, '0'+(dec%2) );
 

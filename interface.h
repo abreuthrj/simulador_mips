@@ -7,5 +7,7 @@
 using namespace std;
 
 void interface( Mips& mips );
+string itobin( string i );
+string rtobin( string r );
 
 #endif

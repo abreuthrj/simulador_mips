@@ -9,19 +9,29 @@
 class Mips
 {
     private:
-        int data_memory[256];
-        size_t instruction_memory[256];
-        int registers_bank[32];
+        // int data_memory[256];
+        // size_t instruction_memory[256];
+        // int registers_bank[32];
+        // size_t memory[256];
         // std::vector<int> memory;
 
         int imem;
         int pc;
 
-        UC control;
-        ALU alu;
+        UC _control;
+        ALU _alu;
+        Memory _memory;
+        Registers _registers;
+        Instruction _decoded;
+        int _cclock;
 
         Instruction decode(size_t instruction);
-        void proccess( size_t instruction );
+        void proccess();
+        void etapa01();
+        void etapa02();
+        void etapa03();
+        void etapa04();
+        void etapa05();
         
         void init();
 

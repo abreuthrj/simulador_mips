@@ -33,9 +33,9 @@ Mips::Mips(ifstream& file)
         {
             cout << "Read: " << instruction << endl;
 
-            int decoded_instruction = bintodec(instruction);
+            long int decoded_instruction = bintodec(instruction);
 
-            instruction_memory[imem] = decoded_instruction;
+            _memory.bank[imem] = decoded_instruction;
             imem++;
         }
 
@@ -47,22 +47,22 @@ void Mips::init()
 {
     pc = 0;
 
-    registers_bank[0] = 0; // $zero
+    _registers.bank[0] = 0; // $zero
 
     // INICIALIZA t0-t7 aleatorios
     for( int i=8; i < 16; i++ )
-        registers_bank[ i ] = rand()%10;
+        _registers.bank[ i ] = rand()%10;
 
     // INICIALIZA s0-s7 aleatorios
     for( int i=16; i < 24; i++ )
-        registers_bank[ i ] = rand()%10;
+        _registers.bank[ i ] = rand()%10;
 
-    registers_bank[29] = 0; // SP
-    registers_bank[28] = 0; // GP
+    _registers.bank[29] = 256*4; // SP
+    _registers.bank[28] = 0; // GP
 
     // INICIALIZA MEMORIA DE DADOS COM 0
     for( int i = 0; i < 256; i++ )
-        data_memory[i] = 0;
+        _memory.bank[i] = -1;
 }
 
 Mips::~Mips()
@@ -72,122 +72,202 @@ Mips::~Mips()
 
 void Mips::Run()
 {
-    PrintReg();
-    for( int i=0; i < imem; i++ )
+    for( int i=0; pc/4 < imem; i++ )
     {
-        cout << "=== INSTRUCTION ===" << endl;
-        proccess( instruction_memory[pc/4] );
-        cout << "===================" << endl;
+        proccess();
     }
 }
 
-void Mips::proccess( size_t inst )
+void Mips::proccess()
+{
+    cout << "=== INSTRUCTION ===" << endl;
+
+    _cclock = 0;
+    etapa01();
+    cout << endl << "Ciclos de Clock: " << _cclock << endl;
+
+    cout << "===================" << endl << endl;
+}
+
+void Mips::etapa01()
 {
     pc += 4;
+    cout << endl << "== ETAPA 01 ==" << endl;
+    _cclock++;
 
-    Instruction instruction = decode( inst );
+    _control.MemRead = 1;
+    _control.IRWrite = 1;
+    _control.IorD = 0;
+    _control.ALUSrcA = 0;
+    _control.ALUSrcB = 1;
+    _control.ALUOp = 0;
+    _control.PCSource = 0;
+    _control.PCWrite = 1;
 
-    // GERA SINAIS BASEADO NO OPCODE
-    control.GenerateSignals(instruction.opcode);
-    // cout << "ALUOp: " << control.ALUOp << endl;
+    long int mem_address = ( _control.IorD == 0 ? (pc/4)-1:_registers.ALUOut );
 
-    // LÊ REGISTRADOR EM RS BITS->BYTES
-    int s1 = registers_bank[ instruction.rs ];
+    if( _control.IRWrite == 1 && _control.MemRead == 1 )
+        _registers.IR = _memory.bank[ mem_address ];
 
-    // LÊ REGISTRADOR EM RS BITS->BYTES
-    int s2 = registers_bank[ instruction.rt ];
+    cout << "pc: " << pc << endl;
+    cout << "mem_add: " << mem_address << endl;
+    cout << "mem_data: " <<  _registers.IR << endl;
+    cout << "mem_data_bin: " << dectobin( _registers.IR, 32 ) << endl;
 
-    int destiny;
+    etapa02();
+}
+void Mips::etapa02()
+{
+    cout << endl << "== ETAPA 02 ==" << endl;
+    _cclock++;
+    /** 2° ETAPA */
+    _control.ALUSrcA = 0;
+    _control.ALUSrcB = 3;
+    _control.ALUOp = 0;
 
-    // CASO REGDST = 0 ESCREVE RT NO REGISTRADOR
-    if( control.RegDst == 0 )
-        destiny = instruction.rt;
+    _decoded = decode( _registers.IR );
+    
+    _registers.A = _registers.bank[ _decoded.rs ];
+    _registers.B = _registers.bank[ _decoded.rt ];
 
-    // CASO REGDST = 1 ESCREVE RD NO REGISTRADOR
-    if( control.RegDst == 1 )
-        destiny =  instruction.rd;
+    cout << "carregado de " << _registers.helper[ _decoded.rs ] << ": " << _registers.A << endl;
+    cout << "carregado de " << _registers.helper[ _decoded.rt ] << ": " << _registers.B << endl;
 
-    // cout << "COntrol REgdst: " << control.RegDst << endl;
+    // if( _control.PCSource == 2 )
+        _registers.ALUOut = bintodec( dectobin( pc,8 ).substr( 0,4 ) + dectobin( _decoded.immediate, 26 ) + "00" );
 
-    // LEVA OS BITS DE ADDRESS PARA O EXTENSOR DE SINAL
-    // DESNECESSÁRIO, JÁ QUE POR QUESTÃO DE OTIMIZAÇÃO
-    // ADDRESS JÁ ESTÁ EM DECIMAL COM SINAL
-    // string addressbin = signedtobin( instruction.address, 32 );
-    // char signalbit = addressbin[0];
-    // while( addressbin.size() < 31 )
-    //     addressbin.insert( 0, 1, '0' );
-    // addressbin.insert( 0, 1, signalbit );
-    // int signalExtended = bintosigned( addressbin );
-    int signalExtended = instruction.address;
+    _control.GenerateSignals( _decoded.opcode );
 
-    // LEVA CAMPO FUNCT PARA A ALU CONTROL
-    alu.ALUControl = ALUControl( instruction.funct );
+    etapa03();
+}
+void Mips::etapa03()
+{
+    cout << endl << "== ETAPA 03 ==" << endl;
+    _cclock++;
 
-    // PASSA OS DADOS PARA A ALU E OBTEM O RESULTADO
-    int ALUResult;
-    if( control.ALUSrc == 0 ) 
-        ALUResult = alu.Result( s1,s2 );
+        string ExtendedBin = signedtobin( _decoded.immediate, 26 ); // EXTENDE O SINAL PARA 32 BITS
+        char Signal_Backup = ExtendedBin[0]; // SALVA O BIT DE SINAL
+        long int SignExtdShiftLeft = bintodec( ExtendedBin.append( 2,'0' ).substr(3).insert( 0,1,Signal_Backup ) ); // SHIFT LEFT 2 BITS
 
-    // cout << "ALU SRC: " << control.ALUSrc << endl;
-    // cout << "ALU Op: " << alu.ALUOp << endl;
-
-    // cout << "ALUSrc: " << control.ALUSrc << endl;
-
-    if( control.ALUSrc == 1 )
-        ALUResult = alu.Result( s1,signalExtended );
-
-    // SHIFT LEFT 2
-    string shiftLeftbin = signedtobin( signalExtended, 32 );
-    char bitsign = shiftLeftbin[0];
-    shiftLeftbin = shiftLeftbin.substr( 3 );
-    shiftLeftbin.append( 1,'0' );
-    shiftLeftbin.append( 1,'0' );
-    shiftLeftbin.insert( 0, 1, bitsign );
-
-    long int shiftLeft = bintosigned( shiftLeftbin );
-
-    // SOMA DO PC + 4 COM O SHIFT LEFT DA ALU
-    // APENAS SE ZERO DA ALU
-    if( control.Branch == 1 && ALUResult == 0 )
+    if( _control.PCWrite == 1 && _control.PCSource == 2 )
     {
-        pc += shiftLeft;
-        cout << "shl: " << shiftLeft/4 << endl << "pc: " << pc << endl;
+        pc = bintodec( dectobin( pc,8 ).substr(0,4) + signedtobin( SignExtdShiftLeft, 28 ) );
+        cout << "Jumped to pc: " << pc << endl;
+        return;
     }
 
-    if( control.MemWrite == 1 )
+    _alu.data1 = ( _control.ALUSrcA == 0 ? pc:_registers.A );
+    _alu.data2 = ( _control.ALUSrcB == 0 ? _registers.B:
+                   _control.ALUSrcB == 1 ? 4: 
+                   _control.ALUSrcB == 2 ? _decoded.immediate: // SINAL 32 EXENDIDO
+                   SignExtdShiftLeft // EXTENDED 2 SHIFT LEFT 
+                 );
+
+    cout << "ALU SrcA: " << _control.ALUSrcA << endl << "ALU SrcB: " << _control.ALUSrcB << endl;
+    cout << "ALU Data1: " << _alu.data1 << endl << "ALU Data2: " << _alu.data2 << endl;
+
+    _alu.ALUControl = ALUControl( _decoded.funct );
+    
+    long int Alu_Result = _alu.tick();
+
+    cout << "ALU Result: " << Alu_Result << endl;
+
+    if( _control.PCWriteCond == 1 )
     {
-        data_memory[ (ALUResult/4)-1 ] = s2;
-        // cout << "S2: " << s2 << endl;
-        // cout << "ALUResult: " << ALUResult << endl;
+        if( ( _decoded.opcode == 4 && Alu_Result == 0 ) || ( _decoded.opcode == 5 && Alu_Result != 0 ) )
+        {
+            if( _control.PCSource == 0 )
+                pc = Alu_Result;
+            else if( _control.PCSource == 1 )
+                pc = _registers.ALUOut;
+            cout << "Branched to pc: " << pc << endl;
+        }            
+        return;
     }
 
-    if( control.RegWrite == 1 )
+    _registers.ALUOut = Alu_Result;
+
+    etapa04();
+}
+void Mips::etapa04()
+{
+    cout << endl << "== ETAPA 04 ==" << endl;
+    _cclock++;
+
+    if( _control.MemWrite == 1 )
+        if( _control.IorD == 1 )
+        {
+            _memory.bank[ _registers.ALUOut/4 ] = _registers.B;
+            cout << "salvo em memoria: " << _registers.B << endl;
+            return;
+        }
+
+    if( _control.MemRead == 1 )
+        if( _control.IorD == 1 )
+        {
+            _registers.MDR = _memory.bank[ _registers.ALUOut/4 ];
+            cout << "lido da memoria: " << _registers.MDR << endl;
+            etapa05();
+            return;
+        }
+
+    if( _control.RegWrite == 1 )
     {
-        if( control.MemtoReg == 1 && control.MemRead == 1 )
-            registers_bank[ destiny ] = data_memory[ (ALUResult/4)-1 ];
-        
-        if( control.MemtoReg == 0 )
-            registers_bank[ destiny ] = ALUResult;
+        short int iReg = ( _control.RegDst == 0 ? _decoded.rt:_decoded.rd );
+        if( _control.MemtoReg == 0 )
+        {
+            _registers.bank[ iReg ] = _registers.ALUOut;
+            cout << "salvo em registrador " << _registers.helper[ iReg ] << ": " << _registers.ALUOut << endl;
+        }
+        else
+        {
+            _registers.bank[ iReg ] = _registers.MDR;
+            cout << "salvo em registrador " << _registers.helper[ iReg ] << ": " << _registers.MDR << endl;
+        }
+        return;
+    }    
+}
+void Mips::etapa05()
+{
+    _cclock++;
+    cout << endl << "== ETAPA 05 ==" << endl;
+    if( _control.RegWrite == 1 && _control.MemtoReg == 1 )
+    {
+        _registers.bank[ _decoded.rt ] = _registers.MDR;
+        cout << "salvo em registrador " << _registers.helper[ _decoded.rt ] << ": " << _registers.MDR << endl;
     }
 }
 
 void Mips::Execute( string inst )
 {
     size_t decoded = bintodec( inst );
+    int pc_backup = pc;
+
+    pc += 4;
+    size_t backup = _memory.bank[ (pc/4)-1 ];
+    _memory.bank[ (pc/4)-1 ] = decoded;
     pc -= 4;
-    proccess( decoded );
+
+    proccess();
+
+    pc = pc_backup;
+    _memory.bank[ (pc/4) ] = backup;
+
 }
 
 void Mips::Step()
 {
-    proccess( instruction_memory[pc/4] );
+    if( _memory.bank[ pc/4 ] == -1 )
+    {
+        cout << "Instrução vazia" << endl;
+        return;
+    }
+    proccess();
 }
 
 Instruction Mips::decode(size_t instruction)
 {
     string ibin = dectobin(instruction,32);
-
-    cout << "ibin: " << ibin << endl;
 
     int OpCode =  bintodec( ibin.substr( 0, 6 ) );
 
@@ -203,8 +283,8 @@ Instruction Mips::decode(size_t instruction)
     i.shamt = bintodec( ibin.substr( 21, 5 ) );
     i.funct = bintodec( ibin.substr( 26 ) );
 
-    // i.address = bintodec( ibin.substr( 6 ) );
-    i.address = bintosigned( ibin.substr( 16 ) );
+    i.immediate = bintosigned( ibin.substr( 16 ) );
+    i.address = bintosigned( ibin.substr( 6 ) );
 
     if( OpCode == 0 )
         cout << ( i.funct == 32 ? 
@@ -224,14 +304,18 @@ Instruction Mips::decode(size_t instruction)
             << endl;
     else
         cout << ( OpCode == 8 ?
-                    "addi "+helper[i.rt]+", "+helper[i.rs]+", "+to_string(i.address):
+                    "addi "+helper[i.rt]+", "+helper[i.rs]+", "+to_string(i.immediate):
                         OpCode == 43 ?
-                        "sw "+helper[i.rt]+", "+to_string(i.address)+"("+helper[i.rs]+")":
+                        "sw "+helper[i.rt]+", "+to_string(i.immediate)+"("+helper[i.rs]+")":
                             OpCode == 35 ?
-                                "lw "+helper[i.rt]+", "+to_string(i.address)+"("+helper[i.rs]+")":
+                                "lw "+helper[i.rt]+", "+to_string(i.immediate)+"("+helper[i.rs]+")":
                                     OpCode == 4 ?
-                                    "beq "+helper[i.rs]+", "+helper[i.rt]+", "+to_string(i.address):
-                                    "undefined"
+                                    "beq "+helper[i.rs]+", "+helper[i.rt]+", "+to_string(i.immediate):
+                                        OpCode == 5 ?
+                                        "bne "+helper[i.rs]+", "+helper[i.rt]+", "+to_string(i.immediate):
+                                            OpCode == 2 ?
+                                            "j "+to_string(i.address):
+                                            "undefined"
                  )
             << endl;
 
@@ -243,7 +327,7 @@ int Mips::ALUControl(int funct)
 {
     int ALUControl;
 
-    switch( control.ALUOp )
+    switch( _control.ALUOp )
     {
         case 0: // LOAD OU STORE WORD / IMMEDIATE
         case 8: // ADDI 
@@ -294,37 +378,37 @@ void Mips::PrintReg()
 {
     cout << "======= REGISTER BANK =======" << endl;
 
-    cout << "$zero = " << registers_bank[0] << endl;
+    cout << "$zero = " << _registers.bank[0] << endl;
     
-    cout << "$at = " << registers_bank[1] << endl;
+    cout << "$at = " << _registers.bank[1] << endl;
     
-    cout << "$v0 = " << registers_bank[2] << " ; ";
-    cout << "$v1 = " << registers_bank[3] << endl;
+    cout << "$v0 = " << _registers.bank[2] << " ; ";
+    cout << "$v1 = " << _registers.bank[3] << endl;
     
-    cout << "$a0 = " << registers_bank[4] << " ; ";
-    cout << "$a1 = " << registers_bank[5] << " ; ";
-    cout << "$a2 = " << registers_bank[6] << " ; ";
-    cout << "$a3 = " << registers_bank[7] << endl;
+    cout << "$a0 = " << _registers.bank[4] << " ; ";
+    cout << "$a1 = " << _registers.bank[5] << " ; ";
+    cout << "$a2 = " << _registers.bank[6] << " ; ";
+    cout << "$a3 = " << _registers.bank[7] << endl;
 
     for( int i = 8; i < 16; i++ )
-        cout << "$t" << i-8 << " = " << registers_bank[i] << ( i==15 ? "\n":" ; " );
+        cout << "$t" << i-8 << " = " << _registers.bank[i] << ( i==15 ? "\n":" ; " );
 
     for( int i = 16; i < 24; i++ )
-        cout << "$s" << i-16 << " = " << registers_bank[i] << ( i==23 ? "\n":" ; " );
+        cout << "$s" << i-16 << " = " << _registers.bank[i] << ( i==23 ? "\n":" ; " );
 
-    cout << "$t8 = " << registers_bank[24] << " ; ";
-    cout << "$t9 = " << registers_bank[25] << endl;
+    cout << "$t8 = " << _registers.bank[24] << " ; ";
+    cout << "$t9 = " << _registers.bank[25] << endl;
 
-    cout << "$k0 = " << registers_bank[26] << " ; ";
-    cout << "$k1 = " << registers_bank[27] << endl;
+    cout << "$k0 = " << _registers.bank[26] << " ; ";
+    cout << "$k1 = " << _registers.bank[27] << endl;
 
-    cout << "$gp = " << registers_bank[28] << endl;
+    cout << "$gp = " << _registers.bank[28] << endl;
 
-    cout << "$sp = " << registers_bank[29] << endl;
+    cout << "$sp = " << _registers.bank[29] << endl;
 
-    cout << "$fp = " << registers_bank[30] << endl;
+    cout << "$fp = " << _registers.bank[30] << endl;
 
-    cout << "$ra = " << registers_bank[31] << endl;
+    cout << "$ra = " << _registers.bank[31] << endl;
 
     cout << "=============================" << endl;
 
@@ -334,9 +418,9 @@ void Mips::PrintMem()
 {
     cout << "========================== DATA Memory ==========================" << endl;
 
-    for( int i=0; i < 256; i++ )
+    for( int i=imem; i < 256; i++ )
     {
-        cout << data_memory[i] << ( (i+1)%32 == 0 ? "\n":" " );
+        cout << _memory.bank[i] << ( (i+1)%32 == 0 ? "\n":" " );
     }
 
     cout << "=================================================================" << endl;
