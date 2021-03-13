@@ -14,6 +14,7 @@ class Mips
         // int registers_bank[32];
         // size_t memory[256];
         // std::vector<int> memory;
+        ofstream output;
 
         int imem;
         int pc;
@@ -34,6 +35,8 @@ class Mips
         void etapa05();
         
         void init();
+
+        void PrintFile(string);
 
         string helper[32] = {
             "$zero", // 0
@@ -86,6 +89,8 @@ class Mips
 
         void Execute( string inst );
         void Step();
+
+        void PrintPC(){ cout << "PC: " << pc << endl; }
 };
 
 #endif

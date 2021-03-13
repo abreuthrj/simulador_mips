@@ -92,7 +92,8 @@ void Mips::proccess()
 void Mips::etapa01()
 {
     pc += 4;
-    cout << endl << "== ETAPA 01 ==" << endl;
+    cout << endl << "== CICLO 01 ==" << endl;
+    cout << "Etapa: Busca" << endl;
     _cclock++;
 
     _control.MemRead = 1;
@@ -109,16 +110,19 @@ void Mips::etapa01()
     if( _control.IRWrite == 1 && _control.MemRead == 1 )
         _registers.IR = _memory.bank[ mem_address ];
 
-    cout << "pc: " << pc << endl;
+    cout << "pc: " << pc-4 << " + 4" << endl;
     cout << "mem_add: " << mem_address << endl;
     cout << "mem_data: " <<  _registers.IR << endl;
     cout << "mem_data_bin: " << dectobin( _registers.IR, 32 ) << endl;
+
+    PrintFile("Busca");
 
     etapa02();
 }
 void Mips::etapa02()
 {
-    cout << endl << "== ETAPA 02 ==" << endl;
+    cout << endl << "== CICLO 02 ==" << endl;
+    cout << "Etapa: Decodifica/Leitura" << endl;
     _cclock++;
     /** 2° ETAPA */
     _control.ALUSrcA = 0;
@@ -138,20 +142,31 @@ void Mips::etapa02()
 
     _control.GenerateSignals( _decoded.opcode );
 
+    PrintFile("Decodifica/Leitura");
+
     etapa03();
 }
 void Mips::etapa03()
 {
-    cout << endl << "== ETAPA 03 ==" << endl;
+    cout << endl << "== CICLO 03 ==" << endl;
+    cout << "Etapa: ULA" << endl;
+    PrintFile("ULA");
     _cclock++;
 
-        string ExtendedBin = signedtobin( _decoded.immediate, 26 ); // EXTENDE O SINAL PARA 32 BITS
-        char Signal_Backup = ExtendedBin[0]; // SALVA O BIT DE SINAL
-        long int SignExtdShiftLeft = bintodec( ExtendedBin.append( 2,'0' ).substr(3).insert( 0,1,Signal_Backup ) ); // SHIFT LEFT 2 BITS
+    string ExtendedBin = signedtobin( _decoded.immediate, 26 ); // EXTENDE O SINAL PARA 32 BITS
+    char Signal_Backup = ExtendedBin[0]; // SALVA O BIT DE SINAL
+    long int SignExtdShiftLeft = bintodec( ExtendedBin.append( 2,'0' ).substr(3).insert( 0,1,Signal_Backup ) ); // SHIFT LEFT 2 BITS
+
+    cout << SignExtdShiftLeft << endl;
 
     if( _control.PCWrite == 1 && _control.PCSource == 2 )
     {
-        pc = bintodec( dectobin( pc,8 ).substr(0,4) + signedtobin( SignExtdShiftLeft, 28 ) );
+        if( _decoded.opcode == 3 )
+        {
+            // SALVA EM RA ENDEREÇO DE RETORNO
+            _registers.bank[_registers.ra] = pc;
+        }
+        pc = SignExtdShiftLeft;
         cout << "Jumped to pc: " << pc << endl;
         return;
     }
@@ -172,6 +187,13 @@ void Mips::etapa03()
 
     cout << "ALU Result: " << Alu_Result << endl;
 
+    if( _control.PCSource == 0 && _decoded.funct == 8 )
+    {
+        pc = Alu_Result;
+        cout << "Jumped to register "+helper[_decoded.rt] << endl;
+        return;
+    }
+
     if( _control.PCWriteCond == 1 )
     {
         if( ( _decoded.opcode == 4 && Alu_Result == 0 ) || ( _decoded.opcode == 5 && Alu_Result != 0 ) )
@@ -179,7 +201,7 @@ void Mips::etapa03()
             if( _control.PCSource == 0 )
                 pc = Alu_Result;
             else if( _control.PCSource == 1 )
-                pc = _registers.ALUOut;
+                pc = SignExtdShiftLeft;
             cout << "Branched to pc: " << pc << endl;
         }            
         return;
@@ -191,7 +213,9 @@ void Mips::etapa03()
 }
 void Mips::etapa04()
 {
-    cout << endl << "== ETAPA 04 ==" << endl;
+    cout << endl << "== CICLO 04 ==" << endl;
+    cout << "Etapa: Memória" << endl;
+    PrintFile("Memória");
     _cclock++;
 
     if( _control.MemWrite == 1 )
@@ -230,12 +254,14 @@ void Mips::etapa04()
 void Mips::etapa05()
 {
     _cclock++;
-    cout << endl << "== ETAPA 05 ==" << endl;
+    cout << endl << "== CICLO 05 ==" << endl;
+    cout << "Etapa: Escrita no banco de registradores" << endl;
     if( _control.RegWrite == 1 && _control.MemtoReg == 1 )
     {
         _registers.bank[ _decoded.rt ] = _registers.MDR;
         cout << "salvo em registrador " << _registers.helper[ _decoded.rt ] << ": " << _registers.MDR << endl;
     }
+    PrintFile("Escrita no banco de registradores");
 }
 
 void Mips::Execute( string inst )
@@ -243,15 +269,13 @@ void Mips::Execute( string inst )
     size_t decoded = bintodec( inst );
     int pc_backup = pc;
 
-    pc += 4;
-    size_t backup = _memory.bank[ (pc/4)-1 ];
-    _memory.bank[ (pc/4)-1 ] = decoded;
-    pc -= 4;
+    size_t backup = _memory.bank[ pc_backup/4 ];
+    _memory.bank[ pc_backup/4 ] = decoded;
 
     proccess();
 
-    pc = pc_backup;
-    _memory.bank[ (pc/4) ] = backup;
+    // pc = pc_backup;
+    _memory.bank[ (pc_backup/4) ] = backup;
 
 }
 
@@ -275,7 +299,7 @@ Instruction Mips::decode(size_t instruction)
 
     i.opcode = OpCode;
 
-    cout << "Opcode: " << OpCode << endl;
+    // cout << "Opcode: " << OpCode << endl;
 
     i.rs = bintodec( ibin.substr( 6, 5 ) );
     i.rt = bintodec( ibin.substr( 11, 5 ) );
@@ -299,7 +323,9 @@ Instruction Mips::decode(size_t instruction)
                                     "slt "+helper[i.rd]+", "+helper[i.rs]+", "+helper[i.rt]:
                                     i.funct == 0 ?
                                         "sll "+helper[i.rd]+", "+helper[i.rt]+", "+to_string(i.shamt):
-                                        "undefined"
+                                            i.funct == 8 ?
+                                                "jr "+helper[i.rt]:
+                                                "undefined"
                  )
             << endl;
     else
@@ -315,7 +341,9 @@ Instruction Mips::decode(size_t instruction)
                                         "bne "+helper[i.rs]+", "+helper[i.rt]+", "+to_string(i.immediate):
                                             OpCode == 2 ?
                                             "j "+to_string(i.address):
-                                            "undefined"
+                                                OpCode == 3 ?
+                                                    "jal "+to_string(i.address):
+                                                    "undefined"
                  )
             << endl;
 
@@ -341,6 +369,7 @@ int Mips::ALUControl(int funct)
         case 2: // INSTRUÇÃO R-TYPE
             switch( funct )
             {
+                case 8:
                 case 32: // ADD
                     ALUControl = bintodec("0010");
                 break;
@@ -426,4 +455,26 @@ void Mips::PrintMem()
     cout << "=================================================================" << endl;
 
     cout << endl;
+}
+
+void Mips::PrintFile(string step)
+{
+    output.open("saida.txt", ofstream::app);
+
+    output << "Etapa: "+step << endl;
+    output << "Instrução: ";
+    output << "Instrução(BIN): " << dectobin( _registers.IR, 32 ) << endl;
+    output << "PC: " << pc << endl;
+
+    streambuf* bckp = cout.rdbuf();
+    cout.rdbuf( output.rdbuf() );
+
+    decode( _registers.IR );
+    PrintReg();
+    _control.Print();
+    cout << endl;
+
+    cout.rdbuf( bckp );
+
+    output.close();
 }

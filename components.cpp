@@ -45,7 +45,7 @@ void UC::GenerateSignals(int OpCode)
             MemWrite = 0;
             MemtoReg = 0;
             IRWrite = 1;
-            PCSource = 2;
+            PCSource = 0;
             ALUOp = 2;
             ALUSrcB = 0;
             ALUSrcA = 1;
@@ -123,6 +123,7 @@ void UC::GenerateSignals(int OpCode)
             cout << "Branch-Type" << endl;
         break;
 
+        case 3: // JAL
         case 2:
             PCWriteCond = 0;
             PCWrite = 1;
@@ -142,6 +143,22 @@ void UC::GenerateSignals(int OpCode)
 
         default: break;
     }
+}
+void UC::Print()
+{
+    cout << "PCWriteCond: " << PCWriteCond << endl;
+    cout << "PCWrite: " << PCWrite << endl;
+    cout << "IorD: " << IorD << endl;
+    cout << "MemRead: " << MemRead << endl;
+    cout << "MemWrite: " << MemWrite << endl;
+    cout << "MemtoReg: " << MemtoReg << endl;
+    cout << "IRWrite: " << IRWrite << endl;
+    cout << "PCSource: " << PCSource << endl;
+    cout << "ALUOp: " << ALUOp << endl;
+    cout << "ALUSrcB: " << ALUSrcB << endl;
+    cout << "ALUSrcA: " << ALUSrcA << endl;
+    cout << "RegWrite: " << RegWrite << endl;
+    cout << "RegDst: " << RegDst << endl;
 }
 
 size_t bintodec(string bin)

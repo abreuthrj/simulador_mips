@@ -24,6 +24,7 @@ struct UC
     // int Jump;
 
     void GenerateSignals(int OpCode);
+    void Print();
 };
 
 struct Instruction
