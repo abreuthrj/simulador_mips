@@ -1,3 +1,6 @@
+# Link para o repositório GitHub
+https://github.com/abreuthrj/simulador_mips.git
+
 # Compilado com
 g++ *.cpp -I .\ -o mips.exe -finput-charset=utf-8
 
